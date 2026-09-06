@@ -1,6 +1,10 @@
+import UnitConverter from '../components/UnitConverter';
+
 export default function ToolsPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-0">
+      <UnitConverter />
+
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <h2 className="font-semibold text-lg mb-4">Bảng tra nhanh theo TCVN 5574:2018</h2>
 
@@ -39,7 +43,7 @@ export default function ToolsPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-slate-500 mt-2">Giá trị gần đúng, α = 2.5 (thép có gân). Cần nhân hệ số điều chỉnh theo vị trí.</p>
+            <p className="text-xs text-slate-500 mt-2">Giá trị gần đúng, α = 2.5 (thép có gân).</p>
           </div>
 
           <div>
@@ -60,8 +64,8 @@ export default function ToolsPage() {
           </div>
 
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm">
-            <strong>Lưu ý:</strong> Các giá trị trên chỉ mang tính tham khảo nhanh.
-            Kỹ sư cần tính toán đầy đủ theo TCVN 5574:2018 Mục 10.3.5 và 10.3.6 trước khi áp dụng vào hồ sơ thiết kế.
+            <strong>Lưu ý:</strong> Các giá trị chỉ mang tính tham khảo nhanh.
+            Kỹ sư cần tính đầy đủ theo TCVN 5574:2018 Mục 10.3.5 và 10.3.6.
           </div>
         </div>
       </div>
