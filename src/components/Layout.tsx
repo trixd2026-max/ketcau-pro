@@ -1,17 +1,10 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Columns3,
-  Square,
-  Layers,
-  FileSpreadsheet,
-  FileText,
-  Moon,
-  Sun,
-  Building2,
+  LayoutDashboard, Columns3, Square, Layers, FileSpreadsheet, FileText, Moon, Sun, Building2, RefreshCw,
 } from 'lucide-react';
 import { useProjectStore } from '../store/useProjectStore';
+import { useToastStore } from '../store/useToastStore';
 import { cn } from '../lib/utils';
 
 const navItems = [
@@ -27,55 +20,46 @@ const navItems = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const { darkMode, toggleDarkMode, projects, currentProjectId } = useProjectStore();
+  const { darkMode, toggleDarkMode, projects, currentProjectId, recalculateAll } = useProjectStore();
+  const { addToast } = useToastStore();
   const current = projects.find(p => p.id === currentProjectId);
+
+  const handleRecalc = () => {
+    recalculateAll();
+    addToast('Đã tính lại tất cả cấu kiện', 'success');
+  };
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-700">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center font-bold text-sm">
-              K
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center font-bold text-sm">K</div>
             <div>
               <div className="font-semibold text-sm">KetCau Pro</div>
               <div className="text-xs text-slate-400">TCVN 5574:2018</div>
             </div>
           </div>
         </div>
-
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => {
             const Icon = item.icon;
             const active = location.pathname === item.path;
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                  active
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                )}
-              >
-                <Icon size={18} />
-                {item.label}
+              <Link key={item.path} to={item.path}
+                className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                  active ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white')}>
+                <Icon size={18} />{item.label}
               </Link>
             );
           })}
         </nav>
-
         <div className="p-4 border-t border-slate-700 text-xs text-slate-400">
           Công cụ hỗ trợ thiết kế.<br />Kỹ sư phải kiểm tra và phê duyệt kết quả.
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <header className="h-14 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-between px-6 shrink-0">
           <div>
             <h1 className="font-semibold text-lg">
@@ -88,28 +72,18 @@ export default function Layout({ children }: { children: ReactNode }) {
                location.pathname === '/projects' ? 'Quản lý Dự án' :
                location.pathname === '/tools' ? 'Công cụ tra cứu' : 'KetCau Pro'}
             </h1>
-            {current && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {current.name}
-              </p>
-            )}
+            {current && <p className="text-xs text-slate-500 dark:text-slate-400">{current.name}</p>}
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleDarkMode}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-              title="Dark/Light mode"
-            >
+          <div className="flex items-center gap-2">
+            <button onClick={handleRecalc} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700" title="Tính lại tất cả">
+              <RefreshCw size={14} /> Tính lại
+            </button>
+            <button onClick={toggleDarkMode} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Dark/Light mode">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
         </header>
-
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import ToastContainer from './components/Toast';
 import Dashboard from './pages/Dashboard';
 import ColumnPage from './pages/ColumnPage';
 import FoundationPage from './pages/FoundationPage';
@@ -15,11 +16,8 @@ function App() {
   const darkMode = useProjectStore(s => s.darkMode);
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   }, [darkMode]);
 
   return (
@@ -36,6 +34,7 @@ function App() {
           <Route path="/tools" element={<ToolsPage />} />
         </Routes>
       </Layout>
+      <ToastContainer />
     </BrowserRouter>
   );
 }
