@@ -20,19 +20,33 @@ import { useAuthStore } from './store/useAuthStore';
 function App() {
   const darkMode = useProjectStore(s => s.darkMode);
   const user = useAuthStore(s => s.user);
+  const ready = useAuthStore(s => s.ready);
+  const initFirebaseListener = useAuthStore(s => s.initFirebaseListener);
 
   useEffect(() => {
     if (darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [darkMode]);
 
-  // Re-bind project storage when user changes
+  useEffect(() => {
+    const unsub = initFirebaseListener();
+    return unsub;
+  }, [initFirebaseListener]);
+
   useEffect(() => {
     useProjectStore.persist.setOptions({
       name: user ? `ketcau-pro-data-${user.id}` : 'ketcau-pro-storage',
     });
     useProjectStore.persist.rehydrate();
   }, [user?.id]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-600">
+        Đang khởi tạo xác thực…
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
