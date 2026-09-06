@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjectStore } from '../store/useProjectStore';
+import { useUIStore } from '../store/useUIStore';
 import { useToastStore } from '../store/useToastStore';
 import { createMaterial, CONCRETE_GRADES, STEEL_GRADES } from '../lib/materials';
+import { suggestOptimize } from '../lib/optimize';
 import StatusBadge from '../components/StatusBadge';
 import UtilizationBar from '../components/UtilizationBar';
+import OptimizeBox from '../components/OptimizeBox';
 import { Pencil, Trash2, Copy, X } from 'lucide-react';
 
 const emptyForm = {
@@ -12,6 +15,7 @@ const emptyForm = {
 
 export default function FoundationPage() {
   const { addElement, updateElement, removeElement, duplicateElement, projects, currentProjectId } = useProjectStore();
+  const { pendingEditId, setPendingEditId } = useUIStore();
   const { addToast } = useToastStore();
   const project = projects.find(p => p.id === currentProjectId);
   const [form, setForm] = useState({ ...emptyForm });
@@ -25,6 +29,15 @@ export default function FoundationPage() {
     });
     setEditingId(f.id);
   };
+
+  useEffect(() => {
+    if (pendingEditId && project) {
+      const el = project.elements.find(e => e.id === pendingEditId && e.type === 'foundation');
+      if (el) loadToForm(el);
+      setPendingEditId(null);
+    }
+  }, [pendingEditId]);
+
   const resetForm = () => { setForm({ ...emptyForm }); setEditingId(null); };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -35,42 +48,31 @@ export default function FoundationPage() {
       L: form.L, B: form.B, H: form.H, N: form.N, Mx: form.Mx, My: form.My,
       soilBearing: form.soilBearing, material: createMaterial(form.concrete, form.steel),
     };
-    if (editingId) {
-      updateElement(editingId, payload);
-      addToast(`Đã cập nhật móng ${payload.name}`, 'success');
-    } else {
-      const id = `M${Date.now().toString().slice(-4)}`;
-      addElement({ ...payload, id, name: form.name || id });
-      addToast(`Đã thêm móng ${form.name || id}`, 'success');
-    }
+    if (editingId) { updateElement(editingId, payload); addToast(`Đã cập nhật móng ${payload.name}`, 'success'); }
+    else { const id = `M${Date.now().toString().slice(-4)}`; addElement({ ...payload, id, name: form.name || id }); addToast(`Đã thêm móng ${form.name || id}`, 'success'); }
     resetForm();
   };
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa móng "${name}"?`)) return;
-    removeElement(id);
-    if (editingId === id) resetForm();
-    addToast(`Đã xóa móng ${name}`, 'info');
+    removeElement(id); if (editingId === id) resetForm(); addToast(`Đã xóa móng ${name}`, 'info');
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20 md:pb-0">
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-lg">{editingId ? 'Sửa móng' : 'Nhập liệu Móng đơn'}</h2>
           {editingId && <button onClick={resetForm} className="text-sm text-slate-500 flex items-center gap-1"><X size={14} /> Hủy sửa</button>}
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Tên móng</label>
-            <input className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
-              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="M1..." />
-          </div>
+          <div><label className="block text-sm font-medium mb-1">Tên móng</label>
+            <input className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className="block text-sm font-medium mb-1">L (m)</label>
               <input type="number" step="0.1" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.L} onChange={e => setForm({ ...form, L: +e.target.value })} /></div>
             <div><label className="block text-sm font-medium mb-1">B (m)</label>
-              <input type="number" step="0.1" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.B} onChange={e => setForm({ ...form, B: +e.target.value })} /></div>
+              <input type="number" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.B} onChange={e => setForm({ ...form, B: +e.target.value })} /></div>
             <div><label className="block text-sm font-medium mb-1">H (m)</label>
               <input type="number" step="0.1" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.H} onChange={e => setForm({ ...form, H: +e.target.value })} /></div>
           </div>
@@ -82,10 +84,8 @@ export default function FoundationPage() {
             <div><label className="block text-sm font-medium mb-1">My (kNm)</label>
               <input type="number" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.My} onChange={e => setForm({ ...form, My: +e.target.value })} /></div>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Sức chịu tải đất R (kPa)</label>
-            <input type="number" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.soilBearing} onChange={e => setForm({ ...form, soilBearing: +e.target.value })} />
-          </div>
+          <div><label className="block text-sm font-medium mb-1">Sức chịu tải đất R (kPa)</label>
+            <input type="number" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.soilBearing} onChange={e => setForm({ ...form, soilBearing: +e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="block text-sm font-medium mb-1">Cấp bê tông</label>
               <select className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.concrete} onChange={e => setForm({ ...form, concrete: e.target.value })}>
@@ -94,18 +94,16 @@ export default function FoundationPage() {
               <select className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900" value={form.steel} onChange={e => setForm({ ...form, steel: e.target.value })}>
                 {Object.keys(STEEL_GRADES).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
           </div>
-          <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
-            {editingId ? 'Lưu & Tính lại' : 'Tính toán & Thêm móng'}
-          </button>
+          <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">{editingId ? 'Lưu & Tính lại' : 'Tính toán & Thêm móng'}</button>
         </form>
       </div>
-
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <h2 className="font-semibold text-lg mb-4">Danh sách móng ({foundations.length})</h2>
         {foundations.length === 0 ? <p className="text-slate-500 text-sm">Chưa có móng nào.</p> : (
           <div className="space-y-3">
             {foundations.map(f => {
               const res = project?.results[f.id];
+              const opts = res ? suggestOptimize(f, res) : [];
               return (
                 <div key={f.id} className={`border rounded-lg p-4 ${editingId === f.id ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
                   <div className="flex justify-between items-start gap-2">
@@ -115,12 +113,12 @@ export default function FoundationPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       {res && <StatusBadge status={res.status} />}
-                      <button onClick={() => loadToForm(f)} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500" title="Sửa"><Pencil size={14} /></button>
-                      <button onClick={() => { const n = duplicateElement(f.id); if (n) addToast('Đã nhân bản móng', 'success'); }} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500" title="Nhân bản"><Copy size={14} /></button>
-                      <button onClick={() => handleDelete(f.id, f.name)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500" title="Xóa"><Trash2 size={14} /></button>
+                      <button onClick={() => loadToForm(f)} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><Pencil size={14} /></button>
+                      <button onClick={() => { if (duplicateElement(f.id)) addToast('Đã nhân bản móng', 'success'); }} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><Copy size={14} /></button>
+                      <button onClick={() => handleDelete(f.id, f.name)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500"><Trash2 size={14} /></button>
                     </div>
                   </div>
-                  {res && <div className="mt-3"><UtilizationBar value={res.utilization} /></div>}
+                  {res && <div className="mt-3"><UtilizationBar value={res.utilization} /><OptimizeBox suggestions={opts} /></div>}
                 </div>
               );
             })}
