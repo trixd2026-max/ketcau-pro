@@ -5,8 +5,10 @@ import autoTable from 'jspdf-autotable';
 import StatusBadge from '../components/StatusBadge';
 import { estimateSteel } from '../lib/steelStats';
 import { downloadCSV, downloadJSON } from '../lib/exportExcel';
+import { exportDesignDossierPDF } from '../lib/reportPdf';
 import { useToastStore } from '../store/useToastStore';
-import { FileSpreadsheet, FileJson, FileText, Download } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { FileSpreadsheet, FileJson, FileText, Download, ScrollText } from 'lucide-react';
 
 const typeLabel: Record<string, string> = {
   column: 'Cột', foundation: 'Móng đơn', beam: 'Dầm', slab: 'Sàn',
@@ -33,8 +35,16 @@ function elementLoads(el: any): string[] {
 export default function ReportPage() {
   const { projects, currentProjectId } = useProjectStore();
   const { addToast } = useToastStore();
+  const authUser = useAuthStore(s => s.user);
   const project = projects.find(p => p.id === currentProjectId);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [companyName, setCompanyName] = useState('CÔNG TY TƯ VẤN THIẾT KẾ');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [projectCode, setProjectCode] = useState('');
+  const [designerName, setDesignerName] = useState(authUser?.name || '');
+  const [checkerName, setCheckerName] = useState('');
+  const [chiefName, setChiefName] = useState('');
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
 
   if (!project) {
     return <div className="text-center py-20 text-slate-500">Chưa chọn dự án.</div>;
@@ -61,6 +71,16 @@ export default function ReportPage() {
     else setChecked(new Set(allIds));
   };
 
+  const onLogoFile = (file: File | null) => {
+    if (!file) {
+      setLogoDataUrl(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setLogoDataUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
   const buildRowsFor = (els: typeof project.elements) =>
     els.map(el => {
       const res = project.results[el.id];
@@ -74,6 +94,19 @@ export default function ReportPage() {
         detail: res?.details?.[0] || '',
       };
     });
+
+  const exportDossier = () => {
+    exportDesignDossierPDF(project, {
+      companyName,
+      companyAddress,
+      projectCode: projectCode || project.id,
+      designerName,
+      checkerName,
+      chiefName,
+      logoDataUrl,
+    });
+    addToast('Đã xuất Hồ sơ thiết kế PDF (bìa + ký)', 'success');
+  };
 
   const exportPDF = (els = project.elements) => {
     if (!els.length) {
@@ -222,9 +255,45 @@ export default function ReportPage() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
+      {/* Hồ sơ thiết kế */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-lg flex items-center gap-2">
+              <ScrollText size={18} /> Hồ sơ thiết kế PDF
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">Bìa công ty + logo · bảng kết quả · μmin/võng/nứt · trang chữ ký</p>
+          </div>
+          <button onClick={exportDossier}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+            <FileText size={16} /> Xuất hồ sơ PDF
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Tên công ty" value={companyName} onChange={e => setCompanyName(e.target.value)} />
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Địa chỉ công ty" value={companyAddress} onChange={e => setCompanyAddress(e.target.value)} />
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Mã dự án / hồ sơ" value={projectCode} onChange={e => setProjectCode(e.target.value)} />
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Người tính toán" value={designerName} onChange={e => setDesignerName(e.target.value)} />
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Người kiểm tra" value={checkerName} onChange={e => setCheckerName(e.target.value)} />
+          <input className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+            placeholder="Chủ nhiệm đồ án" value={chiefName} onChange={e => setChiefName(e.target.value)} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="text-slate-500">Logo công ty (PNG/JPG):</label>
+          <input type="file" accept="image/png,image/jpeg" onChange={e => onLogoFile(e.target.files?.[0] || null)}
+            className="text-sm" />
+          {logoDataUrl && <span className="text-xs text-emerald-600">Đã chọn logo</span>}
+        </div>
+      </div>
+
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Báo cáo dự án: {project.name}</h2>
+          <h2 className="text-lg font-semibold">Báo cáo nhanh: {project.name}</h2>
           <p className="text-sm text-slate-500">
             Tick chọn cấu kiện rồi xuất PDF/Excel · hoặc xuất toàn bộ
             {someChecked ? ` · Đã chọn ${checked.size}` : ''}

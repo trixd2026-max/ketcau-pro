@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
+import { isFirebaseConfigured } from '../lib/firebase';
 
 export default function LoginPage() {
   const login = useAuthStore(s => s.login);
@@ -37,7 +38,14 @@ export default function LoginPage() {
           </div>
         </div>
         <h1 className="text-xl font-semibold mb-1">Đăng nhập</h1>
-        <p className="text-sm text-slate-500 mb-6">Truy cập dự án thiết kế kết cấu của bạn</p>
+        <p className="text-sm text-slate-500 mb-2">Truy cập dự án thiết kế kết cấu của bạn</p>
+        <div className={`inline-flex text-xs px-2 py-1 rounded-full mb-4 ${
+          isFirebaseConfigured
+            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+        }`}>
+          {isFirebaseConfigured ? 'Firebase Auth' : 'Auth local (MVP) — cấu hình VITE_FIREBASE_* để bật cloud'}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -77,9 +85,6 @@ export default function LoginPage() {
         <p className="mt-6 text-sm text-center text-slate-500">
           Chưa có tài khoản?{' '}
           <Link to="/register" className="text-blue-600 hover:underline font-medium">Đăng ký</Link>
-        </p>
-        <p className="mt-3 text-xs text-center text-slate-400">
-          Tài khoản lưu trên trình duyệt (MVP). Có thể nâng cấp Firebase/Supabase sau.
         </p>
       </div>
     </div>
