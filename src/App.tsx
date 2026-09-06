@@ -9,12 +9,12 @@ import SlabPage from './pages/SlabPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ReportPage from './pages/ReportPage';
 import ToolsPage from './pages/ToolsPage';
+import ImportPage from './pages/ImportPage';
 import { useEffect } from 'react';
 import { useProjectStore } from './store/useProjectStore';
 
 function App() {
   const darkMode = useProjectStore(s => s.darkMode);
-
   useEffect(() => {
     if (darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
@@ -32,6 +32,7 @@ function App() {
           <Route path="/slab" element={<SlabPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/import" element={<ImportPage />} />
         </Routes>
       </Layout>
       <ToastContainer />
