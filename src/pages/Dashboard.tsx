@@ -24,6 +24,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const project = projects.find(p => p.id === currentProjectId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -56,10 +57,41 @@ export default function Dashboard() {
   const selectedRes = selectedId ? results[selectedId] : null;
   const suggestions = selected && selectedRes ? suggestOptimize(selected, selectedRes) : [];
 
+  const allFilteredIds = filtered.map(e => e.id);
+  const allChecked = allFilteredIds.length > 0 && allFilteredIds.every(id => checked.has(id));
+  const someChecked = checked.size > 0;
+
+  const toggleOne = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allChecked) setChecked(new Set());
+    else setChecked(new Set(allFilteredIds));
+  };
+
+  const handleBulkDelete = () => {
+    if (!someChecked) return;
+    const n = checked.size;
+    if (!confirm(`Xóa ${n} cấu kiện đã chọn?`)) return;
+    checked.forEach(id => removeElement(id));
+    setChecked(new Set());
+    setSelectedId(null);
+    addToast(`Đã xóa ${n} cấu kiện`, 'info');
+  };
+
   const handleRecalc = () => { recalculateAll(); addToast('Đã tính lại tất cả cấu kiện', 'success'); };
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Xóa cấu kiện "${name}"?`)) return;
-    removeElement(id); setSelectedId(null); addToast(`Đã xóa ${name}`, 'info');
+    removeElement(id); setSelectedId(null);
+    setChecked(prev => { const n = new Set(prev); n.delete(id); return n; });
+    addToast(`Đã xóa ${name}`, 'info');
   };
   const handleDuplicate = (id: string) => {
     if (duplicateElement(id)) addToast('Đã nhân bản cấu kiện', 'success');
@@ -94,6 +126,12 @@ export default function Dashboard() {
             <option value="warning">Cảnh báo</option>
             <option value="fail">Không đạt</option>
           </select>
+          {someChecked && (
+            <button onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={14} /> Xóa đã chọn ({checked.size})
+            </button>
+          )}
         </div>
         <button onClick={handleRecalc} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
           <RefreshCw size={16} /> Tính lại tất cả
@@ -122,20 +160,35 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="font-semibold">Tổng hợp kiểm tra cấu kiện</h2>
-          <p className="text-xs text-slate-500 mt-1">Click hàng để chi tiết / sửa / xóa · Hiển thị {filtered.length}/{elements.length}</p>
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Tổng hợp kiểm tra cấu kiện</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Tick chọn để xóa hàng loạt · Click hàng để chi tiết · Hiển thị {filtered.length}/{elements.length}
+              {someChecked ? ` · Đã chọn ${checked.size}` : ''}
+            </p>
+          </div>
+          {someChecked && (
+            <button onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+              <Trash2 size={14} /> Xóa {checked.size} mục
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500">
               <tr>
-                <th className="text-left px-5 py-3 font-medium">Cấu kiện</th>
-                <th className="text-left px-5 py-3 font-medium">Loại</th>
-                <th className="text-left px-5 py-3 font-medium">Vật liệu</th>
-                <th className="text-left px-5 py-3 font-medium">Kích thước</th>
-                <th className="text-left px-5 py-3 font-medium min-w-[160px]">Hệ số SD <FormulaTooltip /></th>
-                <th className="text-left px-5 py-3 font-medium">Kết luận</th>
+                <th className="px-3 py-3 w-10">
+                  <input type="checkbox" checked={allChecked} onChange={toggleAll}
+                    className="rounded border-slate-300" title="Chọn tất cả" />
+                </th>
+                <th className="text-left px-3 py-3 font-medium">Cấu kiện</th>
+                <th className="text-left px-3 py-3 font-medium">Loại</th>
+                <th className="text-left px-3 py-3 font-medium">Vật liệu</th>
+                <th className="text-left px-3 py-3 font-medium">Kích thước</th>
+                <th className="text-left px-3 py-3 font-medium min-w-[140px]">Hệ số SD <FormulaTooltip /></th>
+                <th className="text-left px-3 py-3 font-medium">Kết luận</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -152,15 +205,21 @@ export default function Dashboard() {
                 } else if (el.type === 'slab') {
                   const s = el as any; size = `${s.lx}×${s.ly}m h=${s.h}mm`;
                 }
+                const isChecked = checked.has(el.id);
                 return (
-                  <tr key={el.id} onClick={() => setSelectedId(el.id)}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer">
-                    <td className="px-5 py-3 font-medium">{el.name}</td>
-                    <td className="px-5 py-3">{typeLabel[el.type]}</td>
-                    <td className="px-5 py-3">{(el as any).material?.concreteGrade} / {(el as any).material?.steelGrade}</td>
-                    <td className="px-5 py-3">{size}</td>
-                    <td className="px-5 py-3">{res ? <UtilizationBar value={res.utilization} /> : '-'}</td>
-                    <td className="px-5 py-3">{res ? <StatusBadge status={res.status} /> : '-'}</td>
+                  <tr key={el.id}
+                    onClick={() => setSelectedId(el.id)}
+                    className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer ${isChecked ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                    <td className="px-3 py-3" onClick={e => toggleOne(el.id, e)}>
+                      <input type="checkbox" checked={isChecked} onChange={() => {}}
+                        className="rounded border-slate-300" />
+                    </td>
+                    <td className="px-3 py-3 font-medium">{el.name}</td>
+                    <td className="px-3 py-3">{typeLabel[el.type]}</td>
+                    <td className="px-3 py-3">{(el as any).material?.concreteGrade} / {(el as any).material?.steelGrade}</td>
+                    <td className="px-3 py-3">{size}</td>
+                    <td className="px-3 py-3">{res ? <UtilizationBar value={res.utilization} /> : '-'}</td>
+                    <td className="px-3 py-3">{res ? <StatusBadge status={res.status} /> : '-'}</td>
                   </tr>
                 );
               })}
