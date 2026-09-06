@@ -10,7 +10,6 @@ interface ProjectState {
   darkMode: boolean;
   language: 'vi' | 'en';
 
-  // Actions
   createProject: (name: string, description?: string) => void;
   setCurrentProject: (id: string) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
@@ -18,6 +17,7 @@ interface ProjectState {
   addElement: (element: StructuralElement) => void;
   updateElement: (id: string, data: Partial<StructuralElement>) => void;
   removeElement: (id: string) => void;
+  duplicateElement: (id: string) => string | null;
   recalculateAll: () => void;
   toggleDarkMode: () => void;
   setLanguage: (lang: 'vi' | 'en') => void;
@@ -200,6 +200,37 @@ export const useProjectStore = create<ProjectState>()(
             };
           }),
         });
+      },
+
+      duplicateElement: (id) => {
+        const { currentProjectId, projects } = get();
+        if (!currentProjectId) return null;
+        const project = projects.find(p => p.id === currentProjectId);
+        if (!project) return null;
+        const original = project.elements.find(e => e.id === id);
+        if (!original) return null;
+
+        const newId = `${original.type === 'column' ? 'C' : original.type === 'foundation' ? 'M' : original.type === 'beam' ? 'D' : 'S'}${Date.now().toString().slice(-4)}`;
+        const cloned = {
+          ...original,
+          id: newId,
+          name: `${original.name} (copy)`,
+        } as StructuralElement;
+
+        const result = runCheck(cloned);
+        set({
+          projects: projects.map(p =>
+            p.id === currentProjectId
+              ? {
+                  ...p,
+                  elements: [...p.elements, cloned],
+                  results: { ...p.results, [newId]: result },
+                  updatedAt: new Date().toISOString(),
+                }
+              : p
+          ),
+        });
+        return newId;
       },
 
       recalculateAll: () => {
