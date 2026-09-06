@@ -7,11 +7,8 @@ import {
   Layers,
   FileSpreadsheet,
   FileText,
-  History,
-  Settings,
   Moon,
   Sun,
-  Plus,
   Building2,
 } from 'lucide-react';
 import { useProjectStore } from '../store/useProjectStore';
@@ -72,7 +69,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-slate-700 text-xs text-slate-400">
-          Công cụ hỗ trợ thiết kế.\nKỹ sư phải kiểm tra và phê duyệt kết quả.
+          Công cụ hỗ trợ thiết kế.<br />Kỹ sư phải kiểm tra và phê duyệt kết quả.
         </div>
       </aside>
 
