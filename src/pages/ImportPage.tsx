@@ -2,69 +2,115 @@ import { useState, useRef } from 'react';
 import { useProjectStore } from '../store/useProjectStore';
 import { useToastStore } from '../store/useToastStore';
 import { createMaterial } from '../lib/materials';
-import { Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { downloadCSV } from '../lib/exportExcel';
+import { Upload, Download, FileSpreadsheet, FileDown } from 'lucide-react';
 
-/** Template CSV mẫu */
-const TEMPLATES: Record<string, string> = {
-  column: `name,sectionType,b,h,d,height,bucklingLength,N,Mx,My,Q,concrete,steel
-Cột A1,rectangular,300,500,,3.3,3.3,1200,80,40,50,B25,CB400-V
-Cột B1,circular,,,400,3.3,3.3,1000,60,60,40,B30,CB400-V`,
-  foundation: `name,L,B,H,N,Mx,My,soilBearing,concrete,steel
-Móng M1,2.4,2.0,0.6,1400,50,30,200,B25,CB400-V`,
-  beam: `name,b,h,L,M,Q,concrete,steel
-Dầm D1,220,500,6,120,80,B25,CB400-V`,
-  slab: `name,lx,ly,h,M,concrete,steel
-Sàn S1,4,5,120,15,B25,CB400-V`,
+const TEMPLATES: Record<string, { headers: string[]; sample: string[][] }> = {
+  column: {
+    headers: ['name', 'sectionType', 'b', 'h', 'd', 'height', 'bucklingLength', 'N', 'Mx', 'My', 'Q', 'concrete', 'steel'],
+    sample: [
+      ['Cột C1', 'rectangular', '300', '500', '', '3.3', '3.3', '1200', '80', '40', '50', 'B25', 'CB400-V'],
+      ['Cột C2', 'rectangular', '400', '400', '', '3.3', '3.3', '1500', '60', '60', '40', 'B25', 'CB400-V'],
+      ['Cột tròn', 'circular', '', '', '400', '3.3', '3.3', '1000', '50', '50', '30', 'B30', 'CB400-V'],
+    ],
+  },
+  foundation: {
+    headers: ['name', 'L', 'B', 'H', 'N', 'Mx', 'My', 'soilBearing', 'concrete', 'steel'],
+    sample: [
+      ['Móng M1', '2.4', '2.0', '0.6', '1400', '50', '30', '200', 'B25', 'CB400-V'],
+      ['Móng M2', '2.0', '2.0', '0.5', '900', '20', '20', '180', 'B25', 'CB400-V'],
+    ],
+  },
+  beam: {
+    headers: ['name', 'group', 'b', 'h', 'L', 'a', 'M', 'Q', 'concrete', 'steel'],
+    sample: [
+      ['Dầm D1', 'BX', '220', '500', '6', '40', '120', '80', 'B25', 'CB400-V'],
+      ['Dầm D2', 'BX', '220', '550', '7', '40', '150', '90', 'B25', 'CB400-V'],
+      ['Dầm D3', 'BY', '200', '400', '4.5', '35', '80', '50', 'B25', 'CB400-V'],
+      ['Dầm D4', 'BY', '200', '450', '5', '35', '95', '55', 'B30', 'CB400-V'],
+    ],
+  },
+  slab: {
+    headers: ['name', 'lx', 'ly', 'h', 'M', 'concrete', 'steel'],
+    sample: [
+      ['Sàn S1', '4', '5', '120', '15', 'B25', 'CB400-V'],
+      ['Sàn S2', '3.5', '4', '100', '12', 'B25', 'CB400-V'],
+    ],
+  },
 };
 
 function parseCSV(text: string): string[][] {
   return text
+    .replace(/^\uFEFF/, '')
     .trim()
     .split(/\r?\n/)
-    .map(line => line.split(',').map(c => c.trim()))
-    .filter(row => row.length > 1 && row.some(c => c));
+    .map(line => {
+      const cells: string[] = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { inQ = !inQ; continue; }
+        if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ''; continue; }
+        cur += ch;
+      }
+      cells.push(cur.trim());
+      return cells;
+    })
+    .filter(row => row.some(c => c));
 }
 
 export default function ImportPage() {
-  const { addElement } = useProjectStore();
+  const { addElement, projects, currentProjectId } = useProjectStore();
   const { addToast } = useToastStore();
-  const [type, setType] = useState<'column' | 'foundation' | 'beam' | 'slab'>('column');
+  const project = projects.find(p => p.id === currentProjectId);
+  const [type, setType] = useState<'column' | 'foundation' | 'beam' | 'slab'>('beam');
   const [preview, setPreview] = useState<string[][]>([]);
+  const [rawText, setRawText] = useState('');
   const [log, setLog] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = () => {
-    const blob = new Blob([TEMPLATES[type]], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ketcau-template-${type}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    addToast('Đã tải template CSV', 'success');
+    const t = TEMPLATES[type];
+    downloadCSV(`ketcau-template-${type}.csv`, t.headers, t.sample);
+    addToast('Đã tải template CSV (mở bằng Excel)', 'success');
   };
 
-  const handleFile = (file: File) => {
+  const downloadSampleAll = () => {
+    // multi-sheet simulation: sequential files tip — export beam sample as main demo
+    const t = TEMPLATES.beam;
+    downloadCSV('ketcau-sample-beams.csv', t.headers, t.sample);
+    addToast('Đã tải dữ liệu mẫu dầm (4 dầm như app mẫu)', 'success');
+  };
+
+  const exportCurrent = () => {
+    if (!project) return;
+    const els = project.elements.filter(e => e.type === type);
+    if (!els.length) {
+      addToast(`Chưa có ${type} trong dự án`, 'warning');
+      return;
+    }
+    const t = TEMPLATES[type];
+    const rows = els.map((el: any) =>
+      t.headers.map(h => {
+        if (h === 'concrete') return el.material?.concreteGrade || '';
+        if (h === 'steel') return el.material?.steelGrade || '';
+        return el[h] ?? '';
+      })
+    );
+    downloadCSV(`ketcau-export-${type}.csv`, t.headers, rows);
+    addToast(`Đã xuất ${els.length} ${type} ra CSV`, 'success');
+  };
+
+  const onFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result || '');
-      const rows = parseCSV(text);
-      setPreview(rows.slice(0, 8));
-      setLog([`Đã đọc ${rows.length - 1} dòng dữ liệu (bỏ header)`]);
+      setRawText(text);
+      setPreview(parseCSV(text).slice(0, 12));
+      setLog([`Đã đọc file: ${file.name}`]);
     };
-    reader.readAsText(file);
-  };
-
-  const importRows = () => {
-    if (preview.length < 2) {
-      addToast('Chưa có dữ liệu để import', 'warning');
-      return;
-    }
-    const header = preview[0].map(h => h.toLowerCase());
-    const dataRows = preview.length > 1 ? preview.slice(1) : [];
-    // Re-read full file from last parse - use all rows from state; for simplicity re-parse from template structure
-    // Actually preview is only first 8; we need full data. Store full in state.
-    addToast('Đang import...', 'info');
+    reader.readAsText(file, 'UTF-8');
   };
 
   const importFromText = (text: string) => {
@@ -73,25 +119,25 @@ export default function ImportPage() {
       addToast('File trống hoặc sai định dạng', 'error');
       return;
     }
-    const header = rows[0].map(h => h.toLowerCase());
+    const header = rows[0].map(h => h.toLowerCase().replace(/\s/g, ''));
     const get = (row: string[], key: string) => {
       const i = header.indexOf(key.toLowerCase());
       return i >= 0 ? row[i] : '';
     };
     let count = 0;
     const errors: string[] = [];
+    const ts = Date.now().toString().slice(-5);
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       try {
         if (type === 'column') {
-          const id = `C${Date.now().toString().slice(-4)}${i}`;
-          const sectionType = (get(row, 'sectionType') || 'rectangular') as any;
+          const id = `C${ts}${i}`;
           addElement({
             id,
             name: get(row, 'name') || id,
             type: 'column',
-            sectionType,
+            sectionType: (get(row, 'sectionType') || 'rectangular') as any,
             b: +get(row, 'b') || 300,
             h: +get(row, 'h') || 500,
             d: +get(row, 'd') || 400,
@@ -105,7 +151,7 @@ export default function ImportPage() {
           });
           count++;
         } else if (type === 'foundation') {
-          const id = `M${Date.now().toString().slice(-4)}${i}`;
+          const id = `M${ts}${i}`;
           addElement({
             id,
             name: get(row, 'name') || id,
@@ -121,21 +167,23 @@ export default function ImportPage() {
           });
           count++;
         } else if (type === 'beam') {
-          const id = `D${Date.now().toString().slice(-4)}${i}`;
+          const id = `D${ts}${i}`;
           addElement({
             id,
             name: get(row, 'name') || id,
             type: 'beam',
+            group: get(row, 'group') || 'BX',
             b: +get(row, 'b') || 220,
             h: +get(row, 'h') || 500,
             L: +get(row, 'L') || 6,
+            a: +get(row, 'a') || 40,
             M: +get(row, 'M') || 0,
             Q: +get(row, 'Q') || 0,
             material: createMaterial(get(row, 'concrete') || 'B25', get(row, 'steel') || 'CB400-V'),
-          });
+          } as any);
           count++;
         } else if (type === 'slab') {
-          const id = `S${Date.now().toString().slice(-4)}${i}`;
+          const id = `S${ts}${i}`;
           addElement({
             id,
             name: get(row, 'name') || id,
@@ -148,71 +196,65 @@ export default function ImportPage() {
           });
           count++;
         }
-      } catch (err) {
-        errors.push(`Dòng ${i + 1}: lỗi`);
+      } catch {
+        errors.push(`Dòng ${i + 1}`);
       }
     }
-    setLog([`Import thành công ${count} cấu kiện`, ...errors]);
-    addToast(`Đã import ${count} cấu kiện`, count ? 'success' : 'error');
+    setLog([`Import thành công ${count} cấu kiện kiểu ${type}`, ...errors.map(e => `Lỗi ${e}`)]);
+    addToast(`Đã import ${count} ${type}`, count ? 'success' : 'error');
   };
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || '');
-      setPreview(parseCSV(text).slice(0, 10));
-      (window as any).__ketcauImportText = text;
-    };
-    reader.readAsText(file);
-  };
-
-  const doImport = () => {
-    const text = (window as any).__ketcauImportText;
-    if (!text) {
-      addToast('Chọn file CSV trước', 'warning');
-      return;
-    }
-    importFromText(text);
+  const loadSampleIntoPreview = () => {
+    const t = TEMPLATES[type];
+    const text = [t.headers.join(','), ...t.sample.map(r => r.join(','))].join('\n');
+    setRawText(text);
+    setPreview(parseCSV(text));
+    setLog(['Đã nạp dữ liệu mẫu vào preview — bấm Import để thêm vào dự án']);
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl pb-20 md:pb-0">
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <h2 className="font-semibold text-lg mb-1 flex items-center gap-2">
-          <FileSpreadsheet size={20} /> Import Excel / CSV
+          <FileSpreadsheet size={20} /> Import / Export CSV (giống bảng tính mẫu)
         </h2>
         <p className="text-sm text-slate-500 mb-4">
-          Tải template → điền số liệu trên Excel (Save as CSV UTF-8) → Upload → Import
+          Tải template → điền trên Excel → lưu CSV UTF-8 → Upload → Import. Có thể xuất lại dữ liệu đang có.
         </p>
 
-        <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <select value={type} onChange={e => setType(e.target.value as any)}
             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm">
-            <option value="column">Cột</option>
-            <option value="foundation">Móng đơn</option>
             <option value="beam">Dầm</option>
+            <option value="column">Cột</option>
+            <option value="foundation">Móng</option>
             <option value="slab">Sàn</option>
           </select>
-          <button onClick={downloadTemplate}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
-            <Download size={16} /> Tải template CSV
+          <button onClick={downloadTemplate} className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
+            <Download size={15} /> CSV template
           </button>
-          <button onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
-            <Upload size={16} /> Chọn file CSV
+          <button onClick={loadSampleIntoPreview} className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
+            Dữ liệu mẫu
           </button>
-          <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={onFileChange} />
+          <button onClick={downloadSampleAll} className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
+            <FileDown size={15} /> CSV mẫu dầm
+          </button>
+          <button onClick={exportCurrent} className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
+            <Download size={15} /> CSV xuất
+          </button>
+          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+            <Upload size={15} /> Nhập file
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
         </div>
 
         {preview.length > 0 && (
           <>
-            <div className="overflow-x-auto mb-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+            <div className="overflow-x-auto mb-4 border border-slate-200 dark:border-slate-700 rounded-lg max-h-64">
               <table className="w-full text-xs">
                 <tbody>
                   {preview.map((row, i) => (
-                    <tr key={i} className={i === 0 ? 'bg-slate-50 dark:bg-slate-900 font-medium' : ''}>
+                    <tr key={i} className={i === 0 ? 'bg-slate-50 dark:bg-slate-900 font-medium sticky top-0' : ''}>
                       {row.map((cell, j) => (
                         <td key={j} className="px-2 py-1.5 border-b border-slate-100 dark:border-slate-700 whitespace-nowrap">{cell}</td>
                       ))}
@@ -221,7 +263,10 @@ export default function ImportPage() {
                 </tbody>
               </table>
             </div>
-            <button onClick={doImport} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+            <button
+              onClick={() => importFromText(rawText)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
+            >
               Import vào dự án hiện tại
             </button>
           </>
@@ -234,9 +279,12 @@ export default function ImportPage() {
         )}
       </div>
 
-      <div className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
-        <strong>Hướng dẫn:</strong> Mở Excel → Data → From Text/CSV hoặc Save As → CSV UTF-8.
-        Giữ nguyên tên cột trong template. File .xlsx thuần có thể Save As .csv trước khi upload.
+      <div className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-1">
+        <p><strong>Quy trình giống app mẫu:</strong></p>
+        <p>1. Chọn loại cấu kiện → <em>CSV template</em> hoặc <em>Dữ liệu mẫu</em></p>
+        <p>2. Mở bằng Excel, chỉnh số liệu, Save As → CSV UTF-8</p>
+        <p>3. <em>Nhập file</em> → kiểm tra preview → <em>Import</em></p>
+        <p>4. <em>CSV xuất</em> để tải lại dữ liệu đã có trong dự án</p>
       </div>
     </div>
   );
