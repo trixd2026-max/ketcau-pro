@@ -6,6 +6,7 @@ import { isFirebaseConfigured } from '../lib/firebase';
 
 export default function LoginPage() {
   const login = useAuthStore(s => s.login);
+  const register = useAuthStore(s => s.register);
   const { addToast } = useToastStore();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -20,10 +21,37 @@ export default function LoginPage() {
     const res = await login(email, password);
     setLoading(false);
     if (!res.ok) {
-      setError(res.error || 'Đăng nhập thất bại');
+      setError(
+        res.error === 'Email hoặc mật khẩu không đúng'
+          ? 'Email hoặc mật khẩu không đúng. Auth local: phải Đăng ký trước trên trình duyệt này (không dùng mật khẩu Gmail thật).'
+          : (res.error || 'Đăng nhập thất bại')
+      );
       return;
     }
     addToast('Đăng nhập thành công', 'success');
+    navigate('/');
+  };
+
+  /** Tạo / đăng nhập tài khoản demo 1 click */
+  const handleDemo = async () => {
+    setError('');
+    setLoading(true);
+    const demoEmail = 'demo@ketcau.local';
+    const demoPass = 'demo123';
+    // thử login trước
+    let res = await login(demoEmail, demoPass);
+    if (!res.ok) {
+      res = await register('Người dùng Demo', demoEmail, demoPass);
+      if (!res.ok && res.error === 'Email đã được đăng ký') {
+        res = await login(demoEmail, demoPass);
+      }
+    }
+    setLoading(false);
+    if (!res.ok) {
+      setError(res.error || 'Không vào được demo');
+      return;
+    }
+    addToast('Đã vào tài khoản demo', 'success');
     navigate('/');
   };
 
@@ -44,7 +72,7 @@ export default function LoginPage() {
             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
             : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
         }`}>
-          {isFirebaseConfigured ? 'Firebase Auth' : 'Auth local (MVP) — cấu hình VITE_FIREBASE_* để bật cloud'}
+          {isFirebaseConfigured ? 'Firebase Auth' : 'Auth local (MVP) — tài khoản chỉ lưu trên trình duyệt này'}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -82,10 +110,27 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {!isFirebaseConfigured && (
+          <button
+            type="button"
+            onClick={handleDemo}
+            disabled={loading}
+            className="mt-3 w-full py-2.5 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-sm font-medium"
+          >
+            Vào nhanh (tài khoản demo)
+          </button>
+        )}
+
         <p className="mt-6 text-sm text-center text-slate-500">
           Chưa có tài khoản?{' '}
           <Link to="/register" className="text-blue-600 hover:underline font-medium">Đăng ký</Link>
         </p>
+        {!isFirebaseConfigured && (
+          <p className="mt-3 text-xs text-center text-slate-400">
+            Lần đầu: bấm <strong>Đăng ký</strong> hoặc <strong>Vào nhanh (demo)</strong>.
+            Không dùng mật khẩu Gmail — auth local không kết nối Google.
+          </p>
+        )}
       </div>
     </div>
   );
